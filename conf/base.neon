@@ -14,8 +14,8 @@ parameters:
             identifier: missingType.generics
             reportUnmatched: false
         -
-            messages:
-                - '#magic number as a function argument#'
+            message: '#magic number as a function argument#'
+            reportUnmatched: false
 
     customRulesetUsed: true
     inferPrivatePropertyTypeFromConstructor: true
