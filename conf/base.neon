@@ -7,10 +7,7 @@ parameters:
                 - '#Unknown PHPDoc tag: @phpstan-latte-component#'
                 - '#Unknown PHPDoc tag: @phpstan-latte-ignore#'
             reportUnmatched: false
-        -
-            identifier: missingType.iterableValue
-            reportUnmatched: false
-        -
+        -   # replacement for deprecated checkGenericClassInNonGenericObjectType: false
             identifier: missingType.generics
             reportUnmatched: false
         -
