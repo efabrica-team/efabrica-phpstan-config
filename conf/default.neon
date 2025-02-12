@@ -89,5 +89,4 @@ parameters:
 
 includes:
     - ../../../phpstan/phpstan-nette/extension.neon
-    - ../../../sidz/phpstan-rules/rules.neon
     - base.neon
