@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace PHPStanConfig\Collector\NotCMS;
 
-use Efabrica\Cms\Core\Plugin\Config\Factory\ConfigItemFactoryStorage;
-use Efabrica\Cms\Core\Plugin\Config\PluginConfigInterface;
-use Efabrica\Cms\Core\Plugin\PluginDefinitionInterface;
 use Efabrica\PHPStanRules\Resolver\NameResolver;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
@@ -22,14 +19,42 @@ use PhpParser\Node\Stmt\Return_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\Type\ObjectType;
+use ReflectionClass;
+use ReflectionException;
 
+/**
+ * @implements Collector<Return_, Config[]>
+ */
 final class ConfigsCollector implements Collector
 {
+    use CollectorCommonTrait;
+
     private NameResolver $nameResolver;
 
-    public function __construct(NameResolver $nameResolver)
-    {
+    /** @var class-string */
+    private string $pluginDefinitionInterface;
+
+    /** @var class-string */
+    private string $pluginConfigInterface;
+
+    /** @var class-string */
+    private string $configItemFactoryStorage;
+
+    /**
+     * @param class-string $pluginDefinitionInterface
+     * @param class-string $pluginConfigInterface
+     * @param class-string $configItemFactoryStorage
+     */
+    public function __construct(
+        NameResolver $nameResolver,
+        string $pluginDefinitionInterface,
+        string $pluginConfigInterface,
+        string $configItemFactoryStorage,
+    ) {
         $this->nameResolver = $nameResolver;
+        $this->pluginDefinitionInterface = $pluginDefinitionInterface;
+        $this->pluginConfigInterface = $pluginConfigInterface;
+        $this->configItemFactoryStorage = $configItemFactoryStorage;
     }
 
     public function getNodeType(): string
@@ -37,7 +62,11 @@ final class ConfigsCollector implements Collector
         return Return_::class;
     }
 
-    public function processNode(Node $node, Scope $scope)
+    /**
+     * @inheritDoc
+     * @return Config[]|null
+     */
+    public function processNode(Node $node, Scope $scope): ?array
     {
         if (!$node instanceof Return_) {
             return null;
@@ -57,13 +86,14 @@ final class ConfigsCollector implements Collector
             return null;
         }
 
+        /** @var class-string|null $className */
         $className = $this->nameResolver->resolve($class->namespacedName);
 
         if (!$className) {
             return null;
         }
 
-        if (!(new ObjectType(PluginDefinitionInterface::class))->isSuperTypeOf(new ObjectType($className))->yes()) {
+        if (!(new ObjectType($this->pluginDefinitionInterface))->isSuperTypeOf(new ObjectType($className))->yes()) {
             return null;
         }
 
@@ -73,34 +103,55 @@ final class ConfigsCollector implements Collector
         }
 
         $pluginControlName = $this->getPluginControlName($class);
+        $backendPluginControlName = $this->getPluginControlName($class, false);
 
-        if (in_array($this->nameResolver->resolve($classMethod->name), ['configuration', 'buildConfiguration'], true)) {
-            return $this->processConfig($returnArray, $scope, ConfigContext::PLUGIN, $className, $pluginControlName) ?: null;
-        }
-
-        if ($this->nameResolver->resolve($classMethod->name) === 'globalConfiguration') {
-            return $this->processConfig($returnArray, $scope, ConfigContext::GLOBAL, $className, $pluginControlName) ?: null;
-        }
-
-        if ($this->nameResolver->resolve($classMethod->name) === 'pageConfiguration') {
-            return $this->processConfig($returnArray, $scope, ConfigContext::PAGE, $className, $pluginControlName) ?: null;
+        $classMethodName = $this->nameResolver->resolve($classMethod->name);
+        if (in_array($classMethodName, ['configuration', 'buildConfiguration'], true)) {
+            return $this->processConfig(
+                $returnArray,
+                $scope,
+                ConfigContext::PLUGIN,
+                $className,
+                $pluginControlName,
+                $backendPluginControlName,
+            ) ?: null;
+        } elseif ($classMethodName === 'globalConfiguration') {
+            return $this->processConfig(
+                $returnArray,
+                $scope,
+                ConfigContext::GLOBAL,
+                $className,
+                $pluginControlName,
+                $backendPluginControlName,
+            ) ?: null;
+        } elseif ($classMethodName === 'pageConfiguration') {
+            return $this->processConfig(
+                $returnArray,
+                $scope,
+                ConfigContext::PAGE,
+                $className,
+                $pluginControlName,
+                $backendPluginControlName,
+            ) ?: null;
         }
 
         return null;
     }
 
-    private function getPluginControlName(Class_ $class): ?string
+    private function getPluginControlName(Class_ $class, bool $frontend = true): ?string
     {
-        $frontendControlClassProperty = $class->getProperty('frontendControlClass');
-        if (!$frontendControlClassProperty instanceof Property) {
+        $controlClassProperty = $class->getProperty(
+            $frontend ? 'frontendControlClass' : 'backendControlClass',
+        );
+        if (!$controlClassProperty instanceof Property) {
             return null;
         }
 
-        foreach ($frontendControlClassProperty->props as $prop) {
+        foreach ($controlClassProperty->props as $prop) {
             if ($prop->default instanceof ClassConstFetch) {
-                $frontendControlClassName = $this->nameResolver->resolve($prop->default->class);
-                if ($frontendControlClassName !== null) {
-                    return $frontendControlClassName;
+                $controlClassName = $this->nameResolver->resolve($prop->default->class);
+                if ($controlClassName !== null) {
+                    return $controlClassName;
                 }
             } elseif ($prop->default instanceof String_) {
                 return $prop->default->value;
@@ -111,81 +162,201 @@ final class ConfigsCollector implements Collector
     }
 
     /**
+     * @param ConfigContext::* $context
+     * @param class-string $definitionClass
      * @return Config[]
      */
-    private function processConfig(Array_ $config, Scope $scope, string $context, string $definitionClass, ?string $pluginControlName): array
-    {
+    private function processConfig(
+        Array_ $config,
+        Scope $scope,
+        string $context,
+        string $definitionClass,
+        ?string $pluginControlName,
+        ?string $backendPluginControlName = null,
+    ): array {
         $configs = [];
         foreach ($config->items as $item) {
-            if ($item->value instanceof Array_) {
-                $configs = array_merge($configs, $this->processConfig($item->value, $scope, $context, $definitionClass, $pluginControlName));
+            if ($item?->value instanceof Array_) {
+                $configs = $configs + $this->processConfig(
+                    $item->value,
+                    $scope,
+                    $context,
+                    $definitionClass,
+                    $pluginControlName,
+                    $backendPluginControlName,
+                );
                 continue;
             }
 
-            if ($item->value instanceof MethodCall) {
-                $configs[] = $this->getConfigFromMethodCall($item->value, $scope, $context, $definitionClass, $pluginControlName);
+            if ($item?->value instanceof MethodCall) {
+                $configs[] = $this->getConfigFromMethodCall(
+                    $item->value,
+                    $scope,
+                    $context,
+                    $definitionClass,
+                    $pluginControlName,
+                    $backendPluginControlName,
+                );
             }
 
-            if ($item->value instanceof New_) {
-                $configs[] = $this->getConfigFromNew($item->value, $scope, $context, $definitionClass, $pluginControlName);
+            if ($item?->value instanceof New_) {
+                $configs[] = $this->getConfigFromNew(
+                    $item->value,
+                    $scope,
+                    $context,
+                    $definitionClass,
+                    $pluginControlName,
+                    $backendPluginControlName,
+                );
             }
         }
 
         return array_filter($configs);
     }
 
-    private function getConfigFromMethodCall(MethodCall $methodCall, Scope $scope, string $context, string $definitionClass, ?string $pluginControlName): ?Config
-    {
-//        var_dump('create from method');
-
+    /**
+     * @param ConfigContext::* $context
+     * @param class-string $definitionClass
+     */
+    private function getConfigFromMethodCall(
+        MethodCall $methodCall,
+        Scope $scope,
+        string $context,
+        string $definitionClass,
+        ?string $pluginControlName,
+        ?string $backendPluginControlName = null,
+    ): ?Config {
         $callerType = $scope->getType($methodCall->var);
-        if ($callerType->equals(new ObjectType(ConfigItemFactoryStorage::class))) {
-            // TODO resolve type based on class / method name - add config to constructor? default and fallback will be string
-            $type = 'string';
-            return $this->processArgs($methodCall->args, $scope, $context, $definitionClass, $type, $methodCall->getLine(), $pluginControlName);
+        if ($callerType->equals(new ObjectType($this->configItemFactoryStorage))) {
+            if (!$methodCall->name instanceof Node\Identifier) {
+                return null;
+            }
+            $methodReflection = $scope->getMethodReflection($callerType, $methodCall->name->name);
+            $methodVariants = $methodReflection?->getVariants() ?? [];
+            if ($methodVariants === []) {
+                return null;
+            }
+            $returnType = $methodVariants[0]->getReturnType();
+            if (!$returnType instanceof ObjectType) {
+                return null;
+            }
+            /** @var class-string $resolvedReturnType */
+            $resolvedReturnType = $returnType->getClassName();
+            $returnTypeReflection = new ReflectionClass($resolvedReturnType);
+            if (!$returnTypeReflection->isSubclassOf($this->pluginConfigInterface)) {
+                return null;
+            }
+            return $this->processArgs(
+                $methodCall->args,
+                $scope,
+                $context,
+                $definitionClass,
+                $resolvedReturnType,
+                $methodCall->getLine(),
+                $pluginControlName,
+                $backendPluginControlName,
+            );
         }
 
-//        var_dump(get_class($methodCall->var));
-
         if ($methodCall->var instanceof MethodCall) {
-            return $this->getConfigFromMethodCall($methodCall->var, $scope, $context, $definitionClass, $pluginControlName);
+            return $this->getConfigFromMethodCall(
+                $methodCall->var,
+                $scope,
+                $context,
+                $definitionClass,
+                $pluginControlName,
+                $backendPluginControlName,
+            );
         }
 
         if ($methodCall->var instanceof New_) {
-            return $this->getConfigFromNew($methodCall->var, $scope, $context, $definitionClass, $pluginControlName);
+            return $this->getConfigFromNew(
+                $methodCall->var,
+                $scope,
+                $context,
+                $definitionClass,
+                $pluginControlName,
+                $backendPluginControlName,
+            );
         }
 
-//        exit;
         return null;
     }
 
-    private function getConfigFromNew(New_ $new, Scope $scope, string $context, string $definitionClass, ?string $pluginControlName): ?Config
-    {
-//        var_dump('create from new');
+    /**
+     * @param ConfigContext::* $context
+     * @param class-string $definitionClass
+     */
+    private function getConfigFromNew(
+        New_ $new,
+        Scope $scope,
+        string $context,
+        string $definitionClass,
+        ?string $pluginControlName,
+        ?string $backendPluginControlName = null,
+    ): ?Config {
+        $newType = $scope->getType($new);
 
-//        var_dump($this->nameResolver->resolve($new->class));
-
-        if (!(new ObjectType(PluginConfigInterface::class))->isSuperTypeOf($scope->getType($new))->yes()) {
+        if (!$newType instanceof ObjectType) {
             return null;
         }
 
-        // TODO resolve type based on class / method name - add config to constructor? default and fallback will be string
-        $type = 'string';
-        return $this->processArgs($new->args, $scope, $context, $definitionClass, $type, $new->getLine(), $pluginControlName);
+        if (!(new ObjectType($this->pluginConfigInterface))->isSuperTypeOf($newType)->yes()) {
+            return null;
+        }
+
+        return $this->processArgs(
+            $new->args,
+            $scope,
+            $context,
+            $definitionClass,
+            $newType->getClassName(),
+            $new->getLine(),
+            $pluginControlName,
+            $backendPluginControlName,
+        );
     }
 
-    private function processArgs(array $args, Scope $scope, string $context, string $definitionClass, string $type, int $line, ?string $pluginControlName): ?Config
-    {
-
+    /**
+     * @param Arg[]|Node\VariadicPlaceholder[] $args
+     * @param ConfigContext::* $context
+     * @param class-string $definitionClass
+     */
+    private function processArgs(
+        array $args,
+        Scope $scope,
+        string $context,
+        string $definitionClass,
+        string $type,
+        int $line,
+        ?string $pluginControlName,
+        ?string $backendPluginControlName = null,
+    ): ?Config {
         $configKeyArg = $args[0] ?? null;
         if (!$configKeyArg instanceof Arg) {
             return null;
         }
 
-        if (!$configKeyArg->value instanceof String_) {
+        $configKey = $configKeyArg->value instanceof String_ ? $configKeyArg->value->value : null;
+        if ($configKey === null && $configKeyArg->value instanceof ClassConstFetch) {
+            $configKey = $this->getClassConstValue($configKeyArg->value, $definitionClass);
+        } elseif ($configKey === null && $configKeyArg->value instanceof Node\Expr\PropertyFetch) {
+            $configKey = $this->getPropertyFetchValue($configKeyArg->value);
+        }
+
+        if ($configKey === null) {
             return null;
         }
 
-        return new Config($context, $definitionClass, $configKeyArg->value->value, $type, $scope->getFile(), $line, $pluginControlName);
+        return new Config(
+            $context,
+            $definitionClass,
+            $configKey,
+            $type,
+            $scope->getFile(),
+            $line,
+            $pluginControlName,
+            $backendPluginControlName,
+        );
     }
 }

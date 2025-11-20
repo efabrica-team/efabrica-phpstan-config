@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace PHPStanConfig\Rule\NotCMS;
 
+use PHPStanConfig\Collector\NotCMS\Config;
+use PHPStanConfig\Collector\NotCMS\ConfigContext;
+use PHPStanConfig\Collector\NotCMS\ConfigsCollector;
+use PHPStanConfig\Helper\CollectedConfigsIterator;
 use PhpParser\Node;
 use PHPStan\Analyser\Scope;
 use PHPStan\Node\CollectedDataNode;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
-use PHPStanConfig\Collector\NotCMS\Config;
-use PHPStanConfig\Collector\NotCMS\ConfigContext;
-use PHPStanConfig\Collector\NotCMS\ConfigsCollector;
-use PHPStanConfig\Helper\CollectedConfigsIterator;
+use PHPStan\ShouldNotHappenException;
 
+/**
+ * @implements Rule<CollectedDataNode>
+ */
 final class DuplicatePageConfigRule implements Rule
 {
     public function getNodeType(): string
@@ -31,16 +35,18 @@ final class DuplicatePageConfigRule implements Rule
 
         $pageConfigs = [];
         foreach (CollectedConfigsIterator::iterate($collectedConfigs) as $config) {
-            if ($config->getContext() !== ConfigContext::PAGE) {
+            if (!$config instanceof Config) {
                 continue;
             }
-            if (!isset($pageConfigs[$config->getName()])) {
-                $pageConfigs[$config->getName()] = [];
+            if ($config->context !== ConfigContext::PAGE) {
+                continue;
             }
-            $pageConfigs[$config->getName()][] = $config;
+            if (!isset($pageConfigs[$config->name])) {
+                $pageConfigs[$config->name] = [];
+            }
+            $pageConfigs[$config->name][] = $config;
         }
 
-        /** @var array<string, Config[]> $multipliedPageConfigs */
         $multipliedPageConfigs = array_filter($pageConfigs, function ($pageConfig) {
             return count($pageConfig) > 1;
         });
@@ -48,10 +54,13 @@ final class DuplicatePageConfigRule implements Rule
         $errors = [];
         foreach ($multipliedPageConfigs as $name => $configs) {
             foreach ($configs as $config) {
-                $errors[] = RuleErrorBuilder::message('Page config with name "' . $name . '" is declared multiple times.')
-                    ->file($config->getFile())
-                    ->line($config->getLine())
-                    ->build();
+                try {
+                    $errors[] = RuleErrorBuilder::message('Page config with name "' . $name . '" is declared multiple times.')
+                        ->file($config->file)
+                        ->line($config->line)
+                        ->build();
+                } catch (ShouldNotHappenException) {
+                }
             }
         }
 
