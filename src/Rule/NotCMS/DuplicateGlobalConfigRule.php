@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace PHPStanConfig\Rule\NotCMS;
 
+use PHPStanConfig\Collector\NotCMS\Config;
+use PHPStanConfig\Collector\NotCMS\ConfigContext;
+use PHPStanConfig\Collector\NotCMS\ConfigsCollector;
+use PHPStanConfig\Helper\CollectedConfigsIterator;
 use PhpParser\Node;
 use PHPStan\Analyser\Scope;
 use PHPStan\Node\CollectedDataNode;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
-use PHPStanConfig\Collector\NotCMS\Config;
-use PHPStanConfig\Collector\NotCMS\ConfigContext;
-use PHPStanConfig\Collector\NotCMS\ConfigsCollector;
-use PHPStanConfig\Helper\CollectedConfigsIterator;
+use PHPStan\ShouldNotHappenException;
 
+/**
+ * @implements Rule<CollectedDataNode>
+ */
 final class DuplicateGlobalConfigRule implements Rule
 {
     public function getNodeType(): string
@@ -31,16 +35,18 @@ final class DuplicateGlobalConfigRule implements Rule
 
         $globalConfigs = [];
         foreach (CollectedConfigsIterator::iterate($collectedConfigs) as $config) {
-            if ($config->getContext() !== ConfigContext::GLOBAL) {
+            if (!$config instanceof Config) {
                 continue;
             }
-            if (!isset($globalConfigs[$config->getName()])) {
-                $globalConfigs[$config->getName()] = [];
+            if ($config->context !== ConfigContext::GLOBAL) {
+                continue;
             }
-            $globalConfigs[$config->getName()][] = $config;
+            if (!isset($globalConfigs[$config->name])) {
+                $globalConfigs[$config->name] = [];
+            }
+            $globalConfigs[$config->name][] = $config;
         }
 
-        /** @var array<string, Config[]> $multipliedGlobalConfigs */
         $multipliedGlobalConfigs = array_filter($globalConfigs, function ($globalConfig) {
             return count($globalConfig) > 1;
         });
@@ -48,10 +54,13 @@ final class DuplicateGlobalConfigRule implements Rule
         $errors = [];
         foreach ($multipliedGlobalConfigs as $name => $configs) {
             foreach ($configs as $config) {
-                $errors[] = RuleErrorBuilder::message('Global config with name "' . $name . '" is declared multiple times.')
-                    ->file($config->getFile())
-                    ->line($config->getLine())
-                    ->build();
+                try {
+                    $errors[] = RuleErrorBuilder::message('Global config with name "' . $name . '" is declared multiple times.')
+                        ->file($config->file)
+                        ->line($config->line)
+                        ->build();
+                } catch (ShouldNotHappenException) {
+                }
             }
         }
 
