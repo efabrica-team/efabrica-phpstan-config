@@ -24,10 +24,10 @@ parameters:
     # turn off strict rules parameters
     polluteScopeWithLoopInitialAssignments: true
     polluteScopeWithAlwaysIterableForeach: true
-    checkAlwaysTrueCheckTypeFunctionCall: false
-    checkAlwaysTrueInstanceof: false
-    checkAlwaysTrueStrictComparison: false
-    checkAlwaysTrueLooseComparison: false
+    # checkAlwaysTrueCheckTypeFunctionCall: false
+    # checkAlwaysTrueInstanceof: false
+    # checkAlwaysTrueStrictComparison: false
+    # checkAlwaysTrueLooseComparison: false
     checkExplicitMixedMissingReturn: false
     reportMaybesInMethodSignatures: false
     reportStaticMethodSignatures: false
