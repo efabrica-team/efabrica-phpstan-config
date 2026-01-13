@@ -3,7 +3,7 @@
     "description": "Custom configs for PHPstan",
     "keywords": ["PHPstan", "config"],
     "require": {
-        "php": "^8.0",
+        "php": "^8.1",
         "phpstan/phpstan": "^1.0",
         "phpstan/phpstan-nette": "^1.0",
         "phpstan/phpstan-symfony": "^1.3",
