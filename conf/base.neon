@@ -99,6 +99,10 @@ services:
         factory: PHPStanConfig\Rule\NotCMS\PluginPropertiesExtension
         tags:
             - phpstan.properties.readWriteExtension
+    -
+        factory: PHPStanConfig\Rule\Hermes\EnforceEnsureInHermesHandlerRule
+        tags:
+            - phpstan.rules.rule
 
 includes:
     - ../../../phpstan/phpstan-nette/rules.neon
