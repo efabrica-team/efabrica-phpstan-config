@@ -100,6 +100,10 @@ services:
         tags:
             - phpstan.properties.readWriteExtension
     -
+        class: Efabrica\PHPStanRules\Rule\Nette\PresenterInjectedPropertiesExtension
+        tags:
+            - phpstan.properties.readWriteExtension
+    -
         factory: PHPStanConfig\Rule\Hermes\EnforceEnsureInHermesHandlerRule
         tags:
             - phpstan.rules.rule
