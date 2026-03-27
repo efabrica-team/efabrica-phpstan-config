@@ -23,7 +23,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Efabrica\\PhpstanConfig\\": "src"
+            "Efabrica\\PhpstanConfig\\": "src",
+            "PHPStanConfig\\": "src"
         }
     },
     "autoload-dev": {
