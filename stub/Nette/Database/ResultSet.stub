@@ -23,8 +23,9 @@ interface IRowContainer extends \Traversable
 
 /**
  * @phpstan-implements \Iterator<int, IRow>
+ * @phpstan-implements IRowContainer<int, IRow>
  */
-class ResultSet implements \Iterator
+class ResultSet implements \Iterator, IRowContainer
 {
 
 }
