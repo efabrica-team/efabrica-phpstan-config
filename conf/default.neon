@@ -2,3 +2,37 @@ includes:
     - ../../../phpstan/phpstan-nette/extension.neon
     - ../../../sidz/phpstan-rules/rules.neon
     - base.neon
+
+parameters:
+    # phpstan-nette's own Database/ResultSet.stub and Database/Table/Selection.stub declare
+    # Selection/IRowContainer/IRow with mutually inconsistent generics (e.g. Iterator<string, ActiveRow>
+    # vs ArrayAccess<string, IRow> on the same class), which cascades into thousands of unrelated
+    # "specifies template type ... as X but it's already specified as Y" errors on any project that
+    # declares its own @extends/@implements referencing Selection's generics. Replace just those two
+    # stub files with the templated versions in ../stub, keep everything else phpstan-nette provides.
+    stubFiles!:
+        - ../../../phpstan/phpstan-nette/stubs/Application/Routers/RouteList.stub
+        - ../../../phpstan/phpstan-nette/stubs/Application/UI/Component.stub
+        - ../../../phpstan/phpstan-nette/stubs/Application/UI/Multiplier.stub
+        - ../../../phpstan/phpstan-nette/stubs/Application/UI/Presenter.stub
+        - ../../../phpstan/phpstan-nette/stubs/Caching/Cache.stub
+        - ../../../phpstan/phpstan-nette/stubs/ComponentModel/Component.stub
+        - ../../../phpstan/phpstan-nette/stubs/ComponentModel/Container.stub
+        - ../../../phpstan/phpstan-nette/stubs/ComponentModel/IComponent.stub
+        - ../../../phpstan/phpstan-nette/stubs/ComponentModel/IContainer.stub
+        - ../../../phpstan/phpstan-nette/stubs/Database/Table/ActiveRow.stub
+        - ../../../phpstan/phpstan-nette/stubs/Forms/Container.stub
+        - ../../../phpstan/phpstan-nette/stubs/Forms/Form.stub
+        - ../../../phpstan/phpstan-nette/stubs/Forms/Rules.stub
+        - ../../../phpstan/phpstan-nette/stubs/Http/SessionSection.stub
+        - ../../../phpstan/phpstan-nette/stubs/Routing/Router.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/ArrayHash.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/Arrays.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/Callback.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/Helpers.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/Html.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/Paginator.stub
+        - ../../../phpstan/phpstan-nette/stubs/Utils/Random.stub
+        - ../stub/Nette/Database/ResultSet.stub
+        - ../stub/Nette/Database/Table/IRowContainer.stub
+        - ../stub/Nette/Database/Table/Selection.stub
