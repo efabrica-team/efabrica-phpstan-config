@@ -1,0 +1,3 @@
+services:
+    - class: PHPStanConfig\Rule\Hermes\EnforceEnsureInHermesHandlerRule
+      tags: [phpstan.rules.rule]

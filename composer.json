@@ -1,8 +1,7 @@
 {
     "name": "efabrica/phpstan-config",
     "description": "Custom configs for PHPstan",
-    "keywords": ["PHPstan","config"],
-
+    "keywords": ["PHPstan", "config"],
     "require": {
         "php": ">=8.1 <8.7",
         "phpstan/phpstan": "^2.0",
@@ -12,13 +11,28 @@
         "phpstan/phpstan-strict-rules": "^2.0",
         "phpstan/phpstan-webmozart-assert": "^2.0",
         "spaze/phpstan-disallowed-calls": "^4.0",
-        "efabrica/phpstan-rules": "dev-vrana/composer-update",
+        "efabrica/phpstan-rules": "^0.9.0",
         "sidz/phpstan-rules": "^0.5.1"
     },
-    "minimum-stability": "dev",
+    "require-dev": {
+        "tomaj/hermes": "^4.2",
+        "nette/database": "^3.2",
+        "phpunit/phpunit": "^9.5"
+    },
     "autoload": {
         "psr-4": {
             "PHPStanConfig\\": "src/"
         }
+    },
+    "autoload-dev": {
+        "classmap": [
+            "tests/Mocks"
+        ],
+        "psr-4": {
+            "PHPStanConfig\\Tests\\Rules\\": "tests/Rules"
+        }
+    },
+    "scripts": {
+        "tests": "vendor/bin/phpunit tests/Rule"
     }
 }
