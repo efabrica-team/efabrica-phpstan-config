@@ -1,6 +1,2 @@
-parameters:
-    strictRules:
-        strictCalls: true
-
 includes:
     - level.6.neon

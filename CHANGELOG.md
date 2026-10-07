@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- php requirement `>=8.1 <8.7`
+
+### Changed
+- [BC] PHPStan 2 and its extensions 2.x, efabrica/phpstan-rules ^0.9.0
+
+### Removed
+- [BC] pepakriz/phpstan-exception-rules from `extra.neon` (no PHPStan 2 release)
+- parameters removed in PHPStan 2 from `extra.neon` (their behaviour is now always on)
+
+### Fixed
+- remove param strictCalls from level 7, as it is not supported in phpstan-strict-rules 2.0
+- renamed phpstan-nette extension `FormContainerUntrustedValuesDynamicReturnTypeExtension` in `db.selection.as.template.neon`
 
 ## [0.22.0] - 2026-02-04
 ### Changed
