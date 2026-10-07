@@ -1,3 +1,6 @@
+includes:
+    - ../vendor/efabrica/phpstan-rules/extension.neon
+
 services:
     - class: PHPStanConfig\Rule\Hermes\EnforceEnsureInHermesHandlerRule
       tags: [phpstan.rules.rule]
